@@ -1,41 +1,4 @@
-# A physical Android phone: build + run, and the Wi-Fi debugging helpers (connect, pair, qr, lock, usb, status).
-
-help_device() {
-  cat <<USAGE
-Usage: skiprun device [--env <name>] [--serial <serial>] [--logs] [-n|--dry-run]
-       skiprun device connect | pair | qr | lock | usb | status
-
-Without a subcommand: build the APK and run it on the phone (a Wi-Fi ip:port
-serial first, then USB; the emulator is never touched). Options as for
-\`skiprun android\`.
-
-Wi-Fi debugging (phone and Mac on the same Wi-Fi):
-  connect   reconnect: the locked endpoint, then mDNS, then a typed IP:PORT
-  pair      first time on a network: pairing code from Developer options →
-            Wireless debugging → "Pair device with pairing code"
-  qr        the same with a QR code rendered in the terminal (no IDE needed)
-  lock      pin adbd to port 5555 so screen-off cannot drop it (until reboot)
-  usb       authorize over a cable once, then switch that device to Wi-Fi
-  status    which layer is broken: pairing, locked port, mDNS, adb connection
-
-Discovery uses macOS dns-sd and resolves hosts to IPv4: adb takes the first
-getaddrinfo answer, link-local IPv6 on a dual-stack phone, and dies with
-"No route to host" against a port that is open.
-USAGE
-}
-
-cmd_device() {
-  case $1 in
-    -h|--help) help_device; return 0 ;;
-    connect|pair|qr|lock|usb|status)
-      local sub=$1; shift
-      [[ $1 == (-h|--help) ]] && { help_device; return 0 }
-      (( $# == 0 )) || die "device $sub takes no arguments"
-      android_tools
-      "wifi_$sub" ;;
-    *) android_run_on_phone "$@" ;;
-  esac
-}
+# Wi-Fi debugging for a physical Android phone: connect, pair, qr, lock, usb, status (skiprun android <word>).
 
 wifi_locked_file() { print -r -- "$(state_home)/locked-endpoint" }
 
@@ -89,36 +52,36 @@ wifi_diagnose() {
      problem: Android closes the wireless-debug port when the Wireless debugging
      screen closes or the phone dozes.
    Fix: open Developer options → Wireless debugging, LEAVE IT OPEN, enable
-        'Stay awake', then: skiprun device connect
+        'Stay awake', then: skiprun android connect
         If the screen IS open and shows THIS port, adbd is stuck: toggle
         Wireless debugging off/on, or reboot the phone.
 MSG
       ;;
     *"No route to host"*|*"Operation timed out"*|*"timeout"*)
       print -r -- "   → The phone is not reachable at all (other Wi-Fi, or AP/client isolation)." >&2
-      print -r -- "   Fix: same Wi-Fi, the phone's hotspot, or a cable: skiprun device usb" >&2
+      print -r -- "   Fix: same Wi-Fi, the phone's hotspot, or a cable: skiprun android usb" >&2
       ;;
     *"failed to authenticate"*|*"device unauthorized"*)
-      print -r -- "   → Reached and listening, but this host is not trusted: skiprun device pair (or qr)" >&2
+      print -r -- "   → Reached and listening, but this host is not trusted: skiprun android pair (or qr)" >&2
       ;;
     *"protocol fault"*)
-      print -r -- "   → Local adb daemon glitch, not the phone: adb kill-server, then skiprun device connect" >&2
+      print -r -- "   → Local adb daemon glitch, not the phone: adb kill-server, then skiprun android connect" >&2
       ;;
     *"failed to connect"*)
       if nc -z -w 2 "${conn%:*}" "${conn##*:}" >/dev/null 2>&1; then
         print -r -- "   → The port IS open but the phone rejected the TLS handshake: it no longer" >&2
-        print -r -- "     trusts this host (a reboot can drop the pairing). Re-pair: skiprun device qr" >&2
+        print -r -- "     trusts this host (a reboot can drop the pairing). Re-pair: skiprun android qr" >&2
       else
         print -r -- "   → The listener is gone (screen closed / phone dozed). Reopen the Wireless" >&2
-        print -r -- "     debugging screen and retry: skiprun device connect" >&2
+        print -r -- "     debugging screen and retry: skiprun android connect" >&2
       fi
       ;;
     *)
       if wifi_is_paired; then
-        print -r -- "   → This host is already paired, so re-pairing will not help. Try the cable: skiprun device usb" >&2
+        print -r -- "   → This host is already paired, so re-pairing will not help. Try the cable: skiprun android usb" >&2
       else
-        print -r -- "   → Never paired on this network (or after a factory reset): skiprun device pair" >&2
-        print -r -- "     If pairing keeps failing on this Wi-Fi: skiprun device usb" >&2
+        print -r -- "   → Never paired on this network (or after a factory reset): skiprun android pair" >&2
+        print -r -- "     If pairing keeps failing on this Wi-Fi: skiprun android usb" >&2
       fi
       ;;
   esac
@@ -147,8 +110,8 @@ wifi_await_connect() {
     conn=$(wifi_mdns "_adb-tls-connect._tcp" 1)
     if [[ -n $conn ]] && wifi_connect_once "$conn"; then
       WIFI_CONN_ADDR=$conn
-      ok "Connected ($conn). Now: skiprun device"
-      print -r -- "   Tip: skiprun device lock pins a fixed port that survives screen-off (until reboot)."
+      ok "Connected ($conn). Now: skiprun android --device"
+      print -r -- "   Tip: skiprun android lock pins a fixed port that survives screen-off (until reboot)."
       return 0
     fi
   done
@@ -166,9 +129,9 @@ wifi_await_connect() {
    CONNECT port (not the pairing one). Enter it here, or press Enter to skip.
 MSG
   print -n -- "   CONNECT IP:PORT (Enter = skip): "; read -r conn
-  [[ -z $conn ]] && { print -r -- "   Skipped. The cable route needs neither mDNS nor pairing: skiprun device usb"; return 1 }
+  [[ -z $conn ]] && { print -r -- "   Skipped. The cable route needs neither mDNS nor pairing: skiprun android usb"; return 1 }
   if wifi_connect_retry "$conn"; then
-    ok "Connected ($WIFI_CONN_ADDR). Now: skiprun device"
+    ok "Connected ($WIFI_CONN_ADDR). Now: skiprun android --device"
     return 0
   fi
   wifi_diagnose "$WIFI_CONN_ADDR"
@@ -255,7 +218,7 @@ wifi_pair() {
    1. The pairing dialog closed / the screen slept → reopen it and retry at once.
    2. Wrong port — the PAIRING port differs from the connect port shown above it.
    3. The Wi-Fi blocks device-to-device traffic → the phone's hotspot, or a cable
-      once: skiprun device usb
+      once: skiprun android usb
 MSG
       return 1 ;;
   esac
@@ -267,7 +230,7 @@ wifi_connect() {
   local locked; locked=$(wifi_locked_file)
   # A pinned endpoint outlives screen-off and Mac sleep; a stale one (phone rebooted) falls through.
   if [[ -s $locked ]] && wifi_connect_once "$(cat "$locked")"; then
-    ok "Reconnected to the locked endpoint ($(cat "$locked")). Now: skiprun device"
+    ok "Reconnected to the locked endpoint ($(cat "$locked")). Now: skiprun android --device"
     return 0
   fi
   local conn; conn=$(wifi_mdns "_adb-tls-connect._tcp" 3)
@@ -278,8 +241,8 @@ wifi_connect() {
     [[ -n $conn ]] || die "no address given"
   fi
   if wifi_connect_retry "$conn"; then
-    ok "Connected over Wi-Fi ($WIFI_CONN_ADDR). Now: skiprun device"
-    print -r -- "   Tip: skiprun device lock pins a fixed port that survives screen-off (until reboot)."
+    ok "Connected over Wi-Fi ($WIFI_CONN_ADDR). Now: skiprun android --device"
+    print -r -- "   Tip: skiprun android lock pins a fixed port that survives screen-off (until reboot)."
   else
     wifi_diagnose "$WIFI_CONN_ADDR"
     return 1
@@ -291,7 +254,7 @@ wifi_connect() {
 wifi_lock() {
   local locked; locked=$(wifi_locked_file)
   local serial; serial=$("$ADB" devices | awk '$2 == "device" && $1 ~ /:/ { print $1; exit }')
-  [[ -n $serial ]] || die "no Wi-Fi device connected — skiprun device connect first, then lock"
+  [[ -n $serial ]] || die "no Wi-Fi device connected — skiprun android connect first, then lock"
   local ip; ip=$("$ADB" -s "$serial" shell -n ip route 2>/dev/null | awk '/wlan0/ && /src/ { for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1) }' | head -n 1 | tr -d '\r')
   [[ -n $ip ]] || ip=${serial%%:*}
   say "Restarting the phone's adbd on fixed port 5555 (drops the current session)..."
@@ -302,10 +265,10 @@ wifi_lock() {
     mkdir -p "${locked:h}"
     print -r -- "$ip:5555" > "$locked"
     print -r -- "🔒 Locked to $ip:5555 until the phone reboots — the screen can sleep now."
-    print -r -- "   After a reboot: skiprun device connect, then skiprun device lock."
+    print -r -- "   After a reboot: skiprun android connect, then skiprun android lock."
   else
     print -r -- "❌ Port 5555 did not come up, and the restart dropped the dynamic session too." >&2
-    print -r -- "   Recover: toggle Wireless debugging off/on on the phone, then skiprun device connect." >&2
+    print -r -- "   Recover: toggle Wireless debugging off/on on the phone, then skiprun android connect." >&2
     return 1
   fi
 }
@@ -342,7 +305,7 @@ wifi_qr() {
   if [[ -z $pair_addr ]]; then
     print -r -- "❌ The phone never advertised pairing service '$name'." >&2
     print -r -- "   Either the QR was not scanned, or this Wi-Fi blocks mDNS between devices." >&2
-    print -r -- "   Fallbacks: skiprun device pair (code), or skiprun device usb (cable)." >&2
+    print -r -- "   Fallbacks: skiprun android pair (code), or skiprun android usb (cable)." >&2
     return 1
   fi
   print -r -- "🔍 Phone answered at $pair_addr — pairing..."
@@ -350,7 +313,7 @@ wifi_qr() {
   print -r -- "$out"
   case $out in
     *"Successfully paired"*) ;;
-    *) print -r -- "❌ Pairing handshake failed. Fallback: skiprun device usb (cable)." >&2; return 1 ;;
+    *) print -r -- "❌ Pairing handshake failed. Fallback: skiprun android usb (cable)." >&2; return 1 ;;
   esac
   local guid; guid=$(print -r -- "$out" | grep -oE "adb-[A-Za-z0-9]+-[A-Za-z0-9]+" | head -n 1)
   wifi_await_connect "$guid" 30
@@ -365,10 +328,10 @@ wifi_usb() {
   "$ADB" -s "$serial" tcpip 5555 >/dev/null 2>&1
   sleep 2
   if wifi_connect_once "$ip:5555"; then
-    ok "Connected over Wi-Fi ($ip:5555) — the cable can come out. Now: skiprun device"
+    ok "Connected over Wi-Fi ($ip:5555) — the cable can come out. Now: skiprun android --device"
   else
     [[ -n $WIFI_CONNECT_ERR ]] && print -r -- "   adb said: $WIFI_CONNECT_ERR" >&2
-    print -r -- "❌ tcpip 5555 did not take (some networks block it). Keep the cable in and run: skiprun device" >&2
+    print -r -- "❌ tcpip 5555 did not take (some networks block it). Keep the cable in and run: skiprun android --device" >&2
     return 1
   fi
 }
@@ -379,18 +342,18 @@ wifi_status() {
   if wifi_is_paired; then
     print -r -- "  ✅ paired ($(strings "$HOME/.android/adb_known_hosts.pb" 2>/dev/null | head -n 1))"
   else
-    print -r -- "  ❌ not paired → skiprun device qr"
+    print -r -- "  ❌ not paired → skiprun android qr"
   fi
-  print -r -- "— Locked endpoint (skiprun device lock, survives screen-off until reboot):"
+  print -r -- "— Locked endpoint (skiprun android lock, survives screen-off until reboot):"
   if [[ -s $locked ]]; then
     local pinned; pinned=$(cat "$locked")
     if nc -z -w 1 "${pinned%:*}" "${pinned##*:}" >/dev/null 2>&1; then
       print -r -- "  ✅ $pinned (port open)"
     else
-      print -r -- "  ⚠️  $pinned stored but the port is closed (phone rebooted?) → skiprun device connect, then lock"
+      print -r -- "  ⚠️  $pinned stored but the port is closed (phone rebooted?) → skiprun android connect, then lock"
     fi
   else
-    print -r -- "  ∅ none → after connecting: skiprun device lock"
+    print -r -- "  ∅ none → after connecting: skiprun android lock"
   fi
   print -r -- "— Live mDNS advertisement (needs the Wireless debugging screen open):"
   local conn; conn=$(wifi_mdns "_adb-tls-connect._tcp" 1)
@@ -402,8 +365,8 @@ wifi_status() {
   print -r -- "— adb connection:"
   "$ADB" devices 2>/dev/null | tail -n +2 | grep -v '^$' | sed 's/^/  /'
   if "$ADB" devices 2>/dev/null | awk '$2 == "device" && $1 ~ /:/ { found = 1 } END { exit !found }'; then
-    print -r -- "  ✅ Wi-Fi device connected — skiprun device will work"
+    print -r -- "  ✅ Wi-Fi device connected — skiprun android --device will work"
   else
-    print -r -- "  ❌ no Wi-Fi device connected → skiprun device connect"
+    print -r -- "  ❌ no Wi-Fi device connected → skiprun android connect"
   fi
 }

@@ -102,6 +102,9 @@ android_tools() {
   ADB=$(android_sdk)/platform-tools/adb
   EMULATOR=$(android_sdk)/emulator/emulator
   [[ -x $ADB ]] || die "adb not found at $ADB (set ANDROID_HOME)"
+  # The first adb call would fork the server with our stdout: a pipe reading skiprun's
+  # output then never sees EOF. Start it detached once.
+  "$ADB" start-server >/dev/null 2>&1 </dev/null
 }
 
 # Flavor names declared inside productFlavors {} of the app module.

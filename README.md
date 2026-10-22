@@ -42,7 +42,7 @@ Run it from anywhere inside a Skip project, the directory tree holding
 ```bash
 skiprun ios                 # simulator
 skiprun android             # emulator
-skiprun device              # the phone on USB or Wi-Fi
+skiprun android --device    # the phone on USB or Wi-Fi
 skiprun android --logs      # ... and stream the app's logcat
 skiprun ios --env production
 skiprun stop                # shut both platforms down when done
@@ -57,12 +57,12 @@ each command.
 | --- | --- |
 | `ios [--env E] [--scheme S] [--configuration C] [--simulator NAME] [-n]` | `xcodebuild` of `Project.xcworkspace` (else the first workspace, else the `.xcodeproj`) for the simulator SDK, then install and launch on the booted simulator. With none booted it boots `ios.simulator`, else the first iPhone of the runtime matching the selected Xcode's SDK. |
 | `android [--env E] [--avd NAME] [--logs] [-n]` | Starts the emulator when none runs (`android.avd`, else the first AVD), `skip gradle -p Android assemble<E>Debug`, installs the APK from `.build/Android/*/outputs/apk/<e>/debug/`, launches the app. `--logs` streams the filtered logcat; Ctrl+C stops streaming, the app keeps running. |
-| `device [--env E] [--serial S] [--logs] [-n]` | The same on a physical phone: a Wi-Fi `ip:port` serial first (builds keep working after the cable comes out), then USB. Never touches the emulator. |
-| `device connect` | Reconnect the phone over Wi-Fi: the locked endpoint, then mDNS discovery, then a typed `IP:PORT`. |
-| `device pair` / `device qr` | First pairing on a network, with the pairing code or with a QR code rendered in the terminal (no IDE needed). |
-| `device lock` | `adb tcpip 5555` over the live connection: a fixed port that survives screen-off until the phone reboots. Android 14+ re-randomizes the wireless-debug port after every doze. |
-| `device usb` | Authorize over a cable once, then switch that device to Wi-Fi. Needs neither pairing nor mDNS. |
-| `device status` | Which layer is broken: pairing record, locked port, live mDNS advertisement, adb connection. |
+| `android --device [S] [--env E] [--logs] [-n]` | The same on a physical phone: the given serial, else a Wi-Fi `ip:port` serial first (builds keep working after the cable comes out), then USB. Never touches the emulator. |
+| `android connect` | Reconnect the phone over Wi-Fi: the locked endpoint, then mDNS discovery, then a typed `IP:PORT`. |
+| `android pair` / `android qr` | First pairing on a network, with the pairing code or with a QR code rendered in the terminal (no IDE needed). |
+| `android lock` | `adb tcpip 5555` over the live connection: a fixed port that survives screen-off until the phone reboots. Android 14+ re-randomizes the wireless-debug port after every doze. |
+| `android usb` | Authorize over a cable once, then switch that device to Wi-Fi. Needs neither pairing nor mDNS. |
+| `android status` | Which layer is broken: pairing record, locked port, live mDNS advertisement, adb connection. |
 | `logs [--serial S]` | Attach the filtered logcat (Skip, crashes, the app id) to the running app. |
 | `shot ios [--device D]` / `shot android [--serial S]` | Screenshot onto the clipboard and into `$TMPDIR/skiprun-shots` (newest 20 kept). iOS: the booted simulator (`simctl`) or the connected iPhone (`devicectl`), a pick when both are there. Android: the emulator or the phone over adb. The file name says where it came from: `ios-simulator-iPhone-17-Pro-…`, `ios-device-<name>-…`, `android-<serial>-…`. Needs nothing from the app. |
 | `stop [ios|android]` | Shut down every simulator / kill the emulator and stop the gradle daemons. Default: both. No command runs it for you: two platforms side by side is a legitimate state. |
@@ -111,7 +111,7 @@ Two files of `key = value` lines (`#` comments), the project file winning:
 | `ios.simulator` | Simulator to boot when none is (name or UDID). |
 | `ios.scheme[.<env>]`, `ios.configuration[.<env>]` | What `ios` builds for the environment (remembered automatically). |
 | `android.avd` | AVD to start when no emulator runs. |
-| `android.serial` | Phone to prefer for `device`, `logs` and `shot`. |
+| `android.serial` | Phone to prefer for `--device`, `logs` and `shot`. |
 
 Example `~/.config/skiprun/config`:
 
@@ -130,8 +130,14 @@ The commands are meant to be aliased; a set that has worked for a while:
 ```zsh
 alias sri='skiprun ios'
 alias sra='skiprun android'
-alias srad='skiprun device'
-alias sradp='skiprun device --env production'
+alias srad='skiprun android --device'
+alias sradp='skiprun android --device --env production'
+alias srad-wifi='skiprun android connect'
+alias srad-pair='skiprun android pair'
+alias srad-qr='skiprun android qr'
+alias srad-lock='skiprun android lock'
+alias srad-usb='skiprun android usb'
+alias srad-status='skiprun android status'
 alias sr='sri && sra'
 alias ishot='skiprun shot ios'
 alias ashot='skiprun shot android'
@@ -143,10 +149,10 @@ alias sk='skiprun stop'
 
 ## Wi-Fi debugging, in short
 
-Once per network: `skiprun device qr` (or `pair`). Once per phone boot:
-`skiprun device connect`, then `skiprun device lock`. Then `skiprun device`
-builds over Wi-Fi, and Android Studio sees the same device. When something
-is off, `skiprun device status` names the layer.
+Once per network: `skiprun android qr` (or `pair`). Once per phone boot:
+`skiprun android connect`, then `skiprun android lock`. Then
+`skiprun android --device` builds over Wi-Fi, and Android Studio sees the
+same device. When something is off, `skiprun android status` names the layer.
 
 Discovery uses macOS `dns-sd`, not `adb mdns services` (adb's backend misses
 live advertisements and serves dead cached ports), and probes every candidate
@@ -160,8 +166,8 @@ rather than reported against a number that no longer exists.
 bin/skiprun          dispatcher: global options, sources lib/*.zsh
 lib/common.zsh       output, picker, project root, Skip.env, config, environments
 lib/ios.zsh          scheme/configuration discovery, simulator, build, install, launch
-lib/android.zsh      emulator, APK build/install/launch, logcat
-lib/device.zsh       phone build/run + the Wi-Fi helpers
+lib/android.zsh      emulator or phone: APK build/install/launch, logcat
+lib/wifi.zsh         the Wi-Fi helpers (android connect | pair | qr | lock | usb | status)
 lib/xcode.zsh        worktree picker
 lib/shot.zsh         screenshots
 lib/stop.zsh         shutdown

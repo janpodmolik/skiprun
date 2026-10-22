@@ -3,12 +3,29 @@
 help_android() {
   cat <<USAGE
 Usage: skiprun android [--env <name>] [--avd <name>] [--logs] [-n|--dry-run]
+       skiprun android --device [<serial>] [--env <name>] [--logs] [-n|--dry-run]
+       skiprun android connect | pair | qr | lock | usb | status
 
-Starts the emulator when none is running (android.avd, else the first AVD),
-builds assemble<Env>Debug with \`skip gradle\`, installs the APK found under
-.build/Android/*/outputs/ (never an intermediate one), launches the app.
+Builds assemble<Env>Debug with \`skip gradle\`, installs the APK found under
+.build/Android/*/outputs/ (never an intermediate one) and launches the app.
+Without --device on the emulator, started when none runs (android.avd, else
+the first AVD). With --device on the phone: the given serial, else a Wi-Fi
+ip:port serial first, then USB; the emulator is never touched.
 --logs streams the app's filtered logcat (Ctrl+C stops streaming, the app
 keeps running); \`skiprun logs\` attaches later.
+
+Getting the phone there over Wi-Fi (phone and Mac on the same Wi-Fi):
+  connect   reconnect: the locked endpoint, then mDNS, then a typed IP:PORT
+  pair      first time on a network: pairing code from Developer options →
+            Wireless debugging → "Pair device with pairing code"
+  qr        the same with a QR code rendered in the terminal (no IDE needed)
+  lock      pin adbd to port 5555 so screen-off cannot drop it (until reboot)
+  usb       authorize over a cable once, then switch that device to Wi-Fi
+  status    which layer is broken: pairing, locked port, mDNS, adb connection
+
+Discovery uses macOS dns-sd and resolves hosts to IPv4: adb takes the first
+getaddrinfo answer, link-local IPv6 on a dual-stack phone, and dies with
+"No route to host" against a port that is open.
 USAGE
 }
 
@@ -22,15 +39,17 @@ USAGE
 }
 
 android_parse_run_options() {
-  OPT_ENV="" OPT_AVD="" OPT_SERIAL="" OPT_LOGS=0
+  OPT_ENV="" OPT_AVD="" OPT_SERIAL="" OPT_LOGS=0 OPT_DEVICE=0
   while (( $# )); do
     case $1 in
       --env) OPT_ENV=$2; shift 2 ;;
       --avd) OPT_AVD=$2; shift 2 ;;
-      --serial) OPT_SERIAL=$2; shift 2 ;;
+      --device) OPT_DEVICE=1; shift
+               [[ -n $1 && $1 != -* ]] && { OPT_SERIAL=$1; shift } ;;
       --logs) OPT_LOGS=1; shift ;;
       -n|--dry-run) SKIPRUN_DRY_RUN=1; shift ;;
-      *) die "$ANDROID_CMD: unknown argument '$1' (see skiprun $ANDROID_CMD --help)" ;;
+      -h|--help) help_android; exit 0 ;;
+      *) die "android: unknown argument '$1' (see skiprun android --help)" ;;
     esac
   done
 }
@@ -79,7 +98,7 @@ android_target_phone() {
       die "the phone is 'unauthorized': unlock it and tap 'Allow USB debugging' (check 'Always')"
     fi
     print -r -- "❌ No phone found. Check: a DATA cable, USB debugging ON, 'adb devices' lists it." >&2
-    print -r -- "   Wi-Fi: skiprun device pair (first time), then skiprun device connect." >&2
+    print -r -- "   Wi-Fi: skiprun android pair (first time), then skiprun android connect." >&2
     exit 1
   fi
 }
@@ -129,27 +148,29 @@ android_stream_logs() {
 }
 
 cmd_android() {
-  local ANDROID_CMD=android OPT_ENV OPT_AVD OPT_SERIAL OPT_LOGS EMU_SERIAL
-  [[ $1 == (-h|--help) ]] && { help_android; return 0 }
+  case $1 in
+    connect|pair|qr|lock|usb|status)
+      local sub=$1; shift
+      [[ $1 == (-h|--help) ]] && { help_android; return 0 }
+      (( $# == 0 )) || die "android $sub takes no arguments"
+      android_tools
+      "wifi_$sub"
+      return ;;
+  esac
+  local OPT_ENV OPT_AVD OPT_SERIAL OPT_LOGS OPT_DEVICE EMU_SERIAL PHONE_SERIAL
   android_parse_run_options "$@"
   require_project
   android_tools
   pkill -f "$ADB logcat" 2>/dev/null
   resolve_env android
-  android_target_emulator
-  android_build_install_launch "$EMU_SERIAL"
-}
-
-android_run_on_phone() {
-  local ANDROID_CMD=device OPT_ENV OPT_AVD OPT_SERIAL OPT_LOGS PHONE_SERIAL
-  android_parse_run_options "$@"
-  require_project
-  android_tools
-  pkill -f "$ADB logcat" 2>/dev/null
-  resolve_env android
-  android_target_phone
-  say "Target phone: $PHONE_SERIAL"
-  android_build_install_launch "$PHONE_SERIAL"
+  if (( OPT_DEVICE )); then
+    android_target_phone
+    say "Target phone: $PHONE_SERIAL"
+    android_build_install_launch "$PHONE_SERIAL"
+  else
+    android_target_emulator
+    android_build_install_launch "$EMU_SERIAL"
+  fi
 }
 
 # The device for logs and screenshots: --serial, $ANDROID_SERIAL, the only one online, else a pick.

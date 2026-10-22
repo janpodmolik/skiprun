@@ -8,7 +8,7 @@ SKIPRUN_LIB=$SKIPRUN_ROOT/lib
 SKIPRUN_LIBEXEC=$SKIPRUN_ROOT/libexec
 
 local f
-for f in common ios android device xcode shot stop config; do
+for f in common ios android wifi xcode shot stop config; do
   source "$SKIPRUN_LIB/$f.zsh"
 done
 
@@ -20,9 +20,9 @@ Usage: skiprun [-C <dir>] <command> [options]
 
 Commands
   ios        build with xcodebuild, install and launch on the iOS simulator
-  android    start the emulator if needed, build the APK, install and launch
-  device     the same on a physical Android phone (USB or Wi-Fi);
-             also: device connect | pair | qr | lock | usb | status
+  android    start the emulator if needed, build the APK, install and launch;
+             --device targets the phone (USB or Wi-Fi) instead, and
+             android connect | pair | qr | lock | usb | status get it there
   logs       stream the running app's logcat (Android)
   shot       screenshot of the simulator or an Android device onto the clipboard
   stop       shut down simulators and the emulator (+ gradle daemons)
@@ -56,7 +56,7 @@ skiprun_main() {
   (( $# )) || { skiprun_usage >&2; return 1 }
   local cmd=$1; shift
   case $cmd in
-    ios|android|device|logs|shot|stop|xcode|config) "cmd_$cmd" "$@" ;;
+    ios|android|logs|shot|stop|xcode|config) "cmd_$cmd" "$@" ;;
     *) die "unknown command '$cmd' (see skiprun --help)" ;;
   esac
 }
