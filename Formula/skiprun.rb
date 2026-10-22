@@ -20,7 +20,7 @@ class Skiprun < Formula
   end
 
   test do
-    assert_match "skiprun #{version}", shell_output("#{bin}/skiprun --version")
+    assert_match(/^skiprun \d+\.\d+\.\d+$/, shell_output("#{bin}/skiprun --version"))
     assert_match "Usage: skiprun ios", shell_output("#{bin}/skiprun ios --help")
   end
 end

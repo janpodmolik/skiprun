@@ -18,7 +18,8 @@ daemons together with the emulator.
 ## Install
 
 ```bash
-brew install janpodmolik/tap/skiprun
+brew install --HEAD janpodmolik/tap/skiprun   # current main, until the first tagged release
+brew install janpodmolik/tap/skiprun          # tagged release (from v0.1.0 on)
 ```
 
 Or from a clone:
