@@ -1,0 +1,64 @@
+#!/bin/zsh
+# skiprun — build, install and launch a Skip app on the iOS simulator, the Android emulator or a phone.
+setopt extended_glob pipefail
+
+SKIPRUN_VERSION=0.1.0
+SKIPRUN_ROOT=${0:A:h:h}
+SKIPRUN_LIB=$SKIPRUN_ROOT/lib
+SKIPRUN_LIBEXEC=$SKIPRUN_ROOT/libexec
+
+local f
+for f in common ios android device xcode shot stop config; do
+  source "$SKIPRUN_LIB/$f.zsh"
+done
+
+skiprun_usage() {
+  cat <<USAGE
+skiprun $SKIPRUN_VERSION — build, install and launch a Skip app
+
+Usage: skiprun [-C <dir>] <command> [options]
+
+Commands
+  ios        build with xcodebuild, install and launch on the iOS simulator
+  android    start the emulator if needed, build the APK, install and launch
+  device     the same on a physical Android phone (USB or Wi-Fi);
+             also: device connect | pair | qr | lock | usb | status
+  logs       stream the running app's logcat (Android)
+  shot       screenshot of the simulator or an Android device onto the clipboard
+  stop       shut down simulators and the emulator (+ gradle daemons)
+  xcode      pick a worktree of the current repo and open its workspace
+  config     print what skiprun resolved for this project; --reset forgets picks
+
+Options
+  -C <dir>   run as if started in <dir>
+  --version  print the version
+  -h, --help this text; every command takes --help too
+
+Run it from anywhere inside a Skip project (the directory holding Skip.env).
+USAGE
+}
+
+skiprun_main() {
+  local dir=""
+  while (( $# )); do
+    case $1 in
+      -C) (( $# >= 2 )) || die "-C needs a directory"; dir=$2; shift 2 ;;
+      -C?*) dir=${1#-C}; shift ;;
+      -h|--help|help) skiprun_usage; return 0 ;;
+      --version) print "skiprun $SKIPRUN_VERSION"; return 0 ;;
+      -*) die "unknown option '$1' (see skiprun --help)" ;;
+      *) break ;;
+    esac
+  done
+  if [[ -n $dir ]]; then
+    cd -- "$dir" || die "cannot enter $dir"
+  fi
+  (( $# )) || { skiprun_usage >&2; return 1 }
+  local cmd=$1; shift
+  case $cmd in
+    ios|android|device|logs|shot|stop|xcode|config) "cmd_$cmd" "$@" ;;
+    *) die "unknown command '$cmd' (see skiprun --help)" ;;
+  esac
+}
+
+skiprun_main "$@"
