@@ -11,7 +11,7 @@ class Skiprun < Formula
   head "https://github.com/janpodmolik/skiprun.git", branch: "main"
 
   depends_on :macos
-  depends_on "skiptools/skip/skip"
+  depends_on "skip"
   depends_on "fzf" => :recommended
 
   def install
