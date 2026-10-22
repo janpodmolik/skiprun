@@ -139,3 +139,61 @@ resolve_env() {
        cfg_remember env "$ENV" ;;
   esac
 }
+
+# Fills WT_PATHS and WT_NAMES with the worktrees of the repository at $1 that sit on a
+# branch (detached and prunable ones are skipped), the one holding $1 first.
+list_worktrees() {
+  local here=${1:A}
+  WT_PATHS=() WT_NAMES=()
+  local -a paths names
+  local tree="" line prunable=0
+  while IFS= read -r line; do
+    case $line in
+      "worktree "*) tree=${line#worktree }; prunable=0 ;;
+      prunable*) prunable=1 ;;
+      "branch refs/heads/"*) (( prunable )) || { paths+=("$tree"); names+=("${line#branch refs/heads/}") } ;;
+    esac
+  done < <(git -C "$here" worktree list --porcelain 2>/dev/null)
+  local i
+  for (( i = 1; i <= ${#paths}; i++ )); do
+    [[ $here == ${paths[i]:A}(|/*) ]] && { WT_PATHS=("${paths[i]}") WT_NAMES=("${names[i]}"); break }
+  done
+  for (( i = 1; i <= ${#paths}; i++ )); do
+    [[ ${#WT_PATHS} -gt 0 && ${paths[i]} == $WT_PATHS[1] ]] && continue
+    WT_PATHS+=("${paths[i]}") WT_NAMES+=("${names[i]}")
+  done
+}
+
+# pick_worktree <query> — sets WT_PATH and WT_NAME; with several worktrees a pick (the current
+# one first, so Enter keeps it) unless the query matches exactly one branch.
+pick_worktree() {
+  local query=$1
+  (( ${#WT_NAMES} )) || die "no worktree on a branch"
+  local -a candidates=( "${WT_NAMES[@]}" )
+  if [[ -n $query ]]; then
+    local -a hits=( ${(M)WT_NAMES:#*$query*} )
+    (( ${#hits} == 0 )) && die "no worktree matches '$query' (have: ${(j:, :)WT_NAMES})"
+    (( ${#hits} == 1 )) && candidates=( "${hits[@]}" )
+  fi
+  if (( ${#candidates} == 1 )); then
+    WT_NAME=$candidates[1]
+  else
+    WT_NAME=$(pick worktree "$query" "${candidates[@]}")
+    [[ -n $WT_NAME ]] || die "no worktree picked"
+  fi
+  WT_PATH=$WT_PATHS[${WT_NAMES[(ie)$WT_NAME]}]
+}
+
+# Before a build: with several worktrees, build the picked one instead of the current.
+choose_build_worktree() {
+  local -a WT_PATHS WT_NAMES; local WT_PATH WT_NAME
+  list_worktrees "$PROJECT_ROOT"
+  (( ${#WT_NAMES} > 1 || OPT_WORKTREE_PICK )) || return 0
+  pick_worktree "$OPT_WORKTREE"
+  [[ ${WT_PATH:A} == ${PROJECT_ROOT:A} ]] && return 0
+  say "Worktree: $WT_NAME (${WT_PATH/#$HOME/~})"
+  PROJECT_ROOT=$WT_PATH
+  cd -- "$PROJECT_ROOT" || die "cannot enter $PROJECT_ROOT"
+  # A worktree without its own .skiprun keeps the values of the one we came from.
+  [[ -f $(project_config_file) ]] && cfg_load
+}

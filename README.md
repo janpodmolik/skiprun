@@ -51,6 +51,12 @@ skiprun stop                # shut both platforms down when done
 `-C <dir>` runs against another project, `skiprun <command> --help` explains
 each command.
 
+With more than one git worktree (say `main` and a prototype branch), `ios`
+and `android` first ask which one to build; the current worktree is listed
+first, so Enter keeps it. `-w <query>` names the branch and skips the ask
+(`skiprun -w proto android --device`), a bare `-w` forces it. A worktree
+without its own `.skiprun` builds with the values of the one you started in.
+
 ### Commands
 
 | Command | What it does |
@@ -66,7 +72,7 @@ each command.
 | `logs [--serial S]` | Attach the filtered logcat (Skip, crashes, the app id) to the running app. |
 | `shot ios [--device D]` / `shot android [--serial S]` | Screenshot onto the clipboard and into `$TMPDIR/skiprun-shots` (newest 20 kept). iOS: the booted simulator (`simctl`) or the connected iPhone (`devicectl`), a pick when both are there. Android: the emulator or the phone over adb. The file name says where it came from: `ios-simulator-iPhone-17-Pro-…`, `ios-device-<name>-…`, `android-<serial>-…`. Needs nothing from the app. |
 | `stop [ios|android]` | Shut down every simulator / kill the emulator and stop the gradle daemons. Default: both. No command runs it for you: two platforms side by side is a legitimate state. |
-| `xcode [query]` | Pick a worktree of the current git repository (fzf, or a menu) and open its `Project.xcworkspace` with `xed`. One worktree opens at once; a query matching one branch opens it directly. |
+| `xcode [query]` | Pick a worktree of the current git repository (fzf, or a menu) and open its `Project.xcworkspace` with `xed`. One worktree opens at once; a query matching one branch opens it directly. The same pick `ios` and `android` use before a build. |
 | `config [--reset]` | Print the files in effect and what skiprun resolved. `--reset` forgets the remembered environment, scheme and configuration. |
 
 `-n` / `--dry-run` prints the build, install and launch commands instead of
@@ -164,7 +170,7 @@ rather than reported against a number that no longer exists.
 
 ```
 bin/skiprun          dispatcher: global options, sources lib/*.zsh
-lib/common.zsh       output, picker, project root, Skip.env, config, environments
+lib/common.zsh       output, picker, project root, Skip.env, config, environments, worktrees
 lib/ios.zsh          scheme/configuration discovery, simulator, build, install, launch
 lib/android.zsh      emulator or phone: APK build/install/launch, logcat
 lib/wifi.zsh         the Wi-Fi helpers (android connect | pair | qr | lock | usb | status)

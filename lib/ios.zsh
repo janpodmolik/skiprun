@@ -143,6 +143,7 @@ cmd_ios() {
     esac
   done
   require_project
+  choose_build_worktree
   ios_container
   resolve_env ios
   resolve_ios_build

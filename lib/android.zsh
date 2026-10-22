@@ -160,6 +160,7 @@ cmd_android() {
   local OPT_ENV OPT_AVD OPT_SERIAL OPT_LOGS OPT_DEVICE EMU_SERIAL PHONE_SERIAL
   android_parse_run_options "$@"
   require_project
+  choose_build_worktree
   android_tools
   pkill -f "$ADB logcat" 2>/dev/null
   resolve_env android
