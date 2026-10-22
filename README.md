@@ -64,7 +64,7 @@ each command.
 | `device usb` | Authorize over a cable once, then switch that device to Wi-Fi. Needs neither pairing nor mDNS. |
 | `device status` | Which layer is broken: pairing record, locked port, live mDNS advertisement, adb connection. |
 | `logs [--serial S]` | Attach the filtered logcat (Skip, crashes, the app id) to the running app. |
-| `shot ios|android` | Screenshot of the booted simulator or an Android device into `$TMPDIR/skiprun-shots` (newest 20 kept) and onto the clipboard. |
+| `shot ios [--device D]` / `shot android [--serial S]` | Screenshot onto the clipboard and into `$TMPDIR/skiprun-shots` (newest 20 kept). iOS: the booted simulator (`simctl`) or the connected iPhone (`devicectl`), a pick when both are there. Android: the emulator or the phone over adb. The file name says where it came from: `ios-simulator-iPhone-17-Pro-…`, `ios-device-<name>-…`, `android-<serial>-…`. Needs nothing from the app. |
 | `stop [ios|android]` | Shut down every simulator / kill the emulator and stop the gradle daemons. Default: both. No command runs it for you: two platforms side by side is a legitimate state. |
 | `xcode [query]` | Pick a worktree of the current git repository (fzf, or a menu) and open its `Project.xcworkspace` with `xed`. One worktree opens at once; a query matching one branch opens it directly. |
 | `config [--reset]` | Print the files in effect and what skiprun resolved. `--reset` forgets the remembered environment, scheme and configuration. |
@@ -133,7 +133,8 @@ alias sra='skiprun android'
 alias srad='skiprun device'
 alias sradp='skiprun device --env production'
 alias sr='sri && sra'
-alias srs='skiprun shot'
+alias ishot='skiprun shot ios'
+alias ashot='skiprun shot android'
 alias srx='skiprun xcode'
 alias ska='skiprun stop android'
 alias ski='skiprun stop ios'
@@ -166,6 +167,7 @@ lib/shot.zsh         screenshots
 lib/stop.zsh         shutdown
 lib/config.zsh       config command
 libexec/simulator.py picks a simulator from `simctl list -j`
+libexec/iphones.py   connected iPhones from `devicectl list devices`
 libexec/adb-qr-pair.py renders the pairing QR (stdlib only)
 Formula/skiprun.rb   Homebrew formula for a tap
 ```
@@ -190,7 +192,7 @@ options or a `skip run` command):
    or should it stay a separate tool that `skip` can point to?
 6. iOS physical devices (`devicectl`) are not covered here; Skip's launch
    already lists them. A combined tool would need signing options.
-7. Logs: a cross-platform `skip logs` (logcat filter on Android, `log stream`
+7. Logs and screenshots: a cross-platform `skip logs` (logcat filter on Android, `log stream`
    with the bundle id predicate on the simulator) would complete the loop.
 8. Shell: this is zsh; Skip's CLI is Swift. A port would be a rewrite, so the
    behaviours above (not the code) are the contribution.

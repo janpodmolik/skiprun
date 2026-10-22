@@ -103,7 +103,7 @@ resolve_ios_build() {
 # Sets SIM_UDID and SIM_NAME: a booted simulator, else the configured or default one, booted here.
 ios_target_simulator() {
   local helper=$SKIPRUN_LIBEXEC/simulator.py line
-  line=$(xcrun simctl list devices booted -j | python3 "$helper" booted)
+  line=$(xcrun simctl list devices booted -j | python3 "$helper" booted | head -n 1)
   if [[ -n $line ]]; then
     SIM_UDID=${line%%	*}; SIM_NAME=${line#*	}
     ok "Simulator already running: $SIM_NAME"

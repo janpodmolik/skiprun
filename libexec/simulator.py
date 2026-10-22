@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pick a simulator from `xcrun simctl list devices -j` on stdin; prints "udid<TAB>name".
 
-  simulator.py booted            the first booted device
+  simulator.py booted            every booted device, one per line
   simulator.py find <name|udid>  an available device by exact name or udid
   simulator.py default <sdk>     the first available iPhone of the runtime matching
                                  the given SDK version (e.g. 26.5), else of the newest
@@ -24,7 +24,7 @@ def main():
         for runtime in runtimes:
             for device in devices[runtime]:
                 if device.get("state") == "Booted":
-                    return device["udid"], device["name"]
+                    print(f"{device['udid']}\t{device['name']}")
         return None
     if mode == "find":
         wanted = sys.argv[2]
