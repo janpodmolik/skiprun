@@ -114,7 +114,8 @@ android_build_install_launch() {
     (( ${SKIPRUN_DRY_RUN:-0} )) && { print -r -- "+ (would install .build/Android/*/outputs/apk/${ENV:+$ENV/}debug/*-debug.apk on $serial)"; return 0 }
     die "no APK under .build/Android/*/outputs/apk/${ENV:+$ENV/}debug"
   fi
-  local apk=$apks[1] pkg; pkg=$(android_app_id)
+  local apk=$apks[1] pkg; pkg=$(apk_app_id "$apk")
+  [[ -n $pkg ]] || pkg=$(android_app_id)
   say "Installing ${apk#$PROJECT_ROOT/} on $serial"
   run "$ADB" -s "$serial" install -r "$apk" || die "Install failed"
   if (( ${SKIPRUN_DRY_RUN:-0} )); then
@@ -198,5 +199,5 @@ cmd_logs() {
   require_project
   android_tools
   serial=$(android_pick_serial "$serial") || exit 1
-  android_stream_logs "$serial" "$(android_app_id)"
+  android_stream_logs "$serial" "$(android_env_app_id)"
 }

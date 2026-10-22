@@ -54,6 +54,18 @@ android_app_id() {
   local id; id=$(skip_env ANDROID_APPLICATION_ID)
   [[ -n $id ]] && print -r -- "$id" || bundle_id
 }
+# apk_app_id <apk> — the id baked into the APK (a flavor's applicationIdSuffix included); empty without aapt2.
+apk_app_id() {
+  local -a aapts=( "$(android_sdk)"/build-tools/*/aapt2(N) )
+  (( ${#aapts} )) || return 0
+  "${aapts[-1]}" dump badging "$1" 2>/dev/null | sed -nE "s/^package: name='([^']+)'.*/\1/p" | head -n 1
+}
+# android_env_app_id — the id of the APK the current env built, or Skip.env's before any build.
+android_env_app_id() {
+  local -a apks=( "$PROJECT_ROOT"/.build/Android/*/outputs/apk/${ENV:+$ENV/}debug/*-debug.apk(N) )
+  local id; (( ${#apks} )) && id=$(apk_app_id "$apks[1]")
+  [[ -n $id ]] && print -r -- "$id" || android_app_id
+}
 
 # Config: `key = value` lines, `#` comments; the project file overrides the machine file.
 typeset -gA CFG
