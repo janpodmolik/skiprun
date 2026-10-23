@@ -151,7 +151,8 @@ cmd_ios() {
 
   local derived=$PROJECT_ROOT/.build/Darwin/DerivedData
   say "Building iOS app: $SCHEME ($CONFIGURATION)..."
-  run xcodebuild "${IOS_CONTAINER[@]}" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
+  local -a build_env=( ${(f)"$(ios_build_env)"} )
+  run env "${build_env[@]}" xcodebuild "${IOS_CONTAINER[@]}" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
     -sdk iphonesimulator -derivedDataPath "$derived" \
     -skipPackagePluginValidation -skipMacroValidation -quiet build || die "Build failed"
 
@@ -172,4 +173,13 @@ cmd_ios() {
   run xcrun simctl install "$SIM_UDID" "$app" || die "Install failed"
   say "Launching $bundle"
   run xcrun simctl launch "$SIM_UDID" "$bundle"
+}
+
+# ios_build_env — variables xcodebuild needs for this project. A bridging (Skip Fuse) module
+# needs the Skip packages as dynamic frameworks, or SkipFoundation is linked statically into two
+# of them and the ObjC runtime reports a duplicate class at every launch.
+ios_build_env() {
+  local -a ymls=( "$PROJECT_ROOT"/Sources/*/Skip/skip.yml(N) )
+  (( ${#ymls} )) && grep -lE '^\s*enabled:\s*true' "${ymls[@]}" >/dev/null 2>&1 && print -r -- "SKIP_DYNAMIC_LIBRARIES=1"
+  return 0
 }
