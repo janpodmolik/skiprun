@@ -33,5 +33,6 @@ cmd_xcode() {
   (( ${#build_env} )) || { xed "$doc"; return }
   # A running Xcode keeps the environment it was started with, so the variables only take on a fresh launch.
   pgrep -xq Xcode && warn "Xcode is already running: quit it and run this again, or its builds go without ${build_env[*]}"
-  run env "${build_env[@]}" open -a Xcode "$doc"
+  local app=${$(xcode-select -p)%/Contents/Developer}
+  run env "${build_env[@]}" open -a "$app" "$doc"
 }
