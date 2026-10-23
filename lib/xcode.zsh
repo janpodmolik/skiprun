@@ -29,5 +29,9 @@ cmd_xcode() {
   list_worktrees "$PWD"
   pick_worktree "${1:-$OPT_WORKTREE}"
   local doc; doc=$(xcode_document "$WT_PATH") || die "nothing to open in $WT_PATH (no .xcworkspace or .xcodeproj)"
-  xed "$doc"
+  local -a build_env=( ${(f)"$(PROJECT_ROOT=$WT_PATH ios_build_env)"} )
+  (( ${#build_env} )) || { xed "$doc"; return }
+  # A running Xcode keeps the environment it was started with, so the variables only take on a fresh launch.
+  pgrep -xq Xcode && warn "Xcode is already running: quit it and run this again, or its builds go without ${build_env[*]}"
+  run env "${build_env[@]}" open -a Xcode "$doc"
 }
